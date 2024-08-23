@@ -1,0 +1,28 @@
+syntax = "proto3";
+package pb;
+option go_package = "./pb";
+import "mb-common.proto";
+
+message PingRequest{
+  int64 timestamp = 1;
+}
+message PingResponse{
+  int32 code = 1;
+  string msg = 2;
+  int64 delay = 3;
+  string token = 4;
+}
+
+message ListRequest{
+  string path = 1;
+}
+message ListResponse{
+  int32 code = 1;
+  string msg = 2;
+}
+
+service MovingBricks {
+  rpc Ping (PingRequest) returns (PingResponse) {}
+  rpc List (ListRequest) returns (ListResponse) {}
+  rpc Transfer(stream TransferChunk) returns(stream TransferChunk){}
+}

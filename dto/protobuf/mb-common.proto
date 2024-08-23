@@ -1,0 +1,27 @@
+syntax = "proto3";
+package pb;
+option go_package = "./pb";
+
+enum TransferAction {
+  TA_None = 0;
+  TA_PathExist = 1;
+  TA_LoadDirs = 2;
+  TA_LoadFiles = 3;
+  TA_ReadData = 4;
+  TA_WriteData = 5;
+}
+
+enum TransferStatus {
+  TS_None = 0;
+  TS_Success = 1;
+  TS_Failed = 2;
+}
+
+message TransferChunk {
+  string tc_id = 1; // 唯一标识
+  TransferAction action = 2;
+  bytes data = 3;
+  TransferStatus statue = 4;
+  string target_path = 5;
+  int64 offset = 6;
+}
