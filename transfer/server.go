@@ -1,56 +1,65 @@
 package transfer
 
 import (
+	"context"
+	"errors"
 	"github.com/lrayt/moving-bricks/dto/pb"
+	"github.com/lrayt/moving-bricks/pkg/auth"
 	"github.com/lrayt/moving-bricks/transfer/handler"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"net"
 )
 
-type TServer struct {
-	listener net.Listener
-	svr      *grpc.Server
+type WrappedServerStream struct {
+	grpc.ServerStream
+	WrappedContext context.Context
 }
 
-func (s TServer) Run() error {
+func (w *WrappedServerStream) Context() context.Context {
+	return w.WrappedContext
+}
+
+func WrapServerStream(stream grpc.ServerStream, user *auth.UserInfo) *WrappedServerStream {
+	if existing, ok := stream.(*WrappedServerStream); ok {
+		return existing
+	}
+	ctx := context.WithValue(stream.Context(), auth.UserId, user.UID)
+	ctx = context.WithValue(ctx, auth.UserName, user.Name)
+	return &WrappedServerStream{ServerStream: stream, WrappedContext: ctx}
+}
+
+type TServer struct {
+	addr string
+	svr  *grpc.Server
+}
+
+func (s TServer) auth(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	md, ok := metadata.FromIncomingContext(ss.Context())
+	if !ok || len(md.Get(auth.Authorization)) <= 0 {
+		return errors.New("miss authorization! ")
+	}
+	if user, err1 := auth.ParseToken(md.Get(auth.Authorization)[0]); err1 != nil {
+		return err1
+	} else {
+		return handler(srv, WrapServerStream(ss, user))
+	}
+}
+
+func (s *TServer) Run() error {
+	listener, err := net.Listen("tcp", s.addr)
+	if err != nil {
+		return err
+	}
+	s.svr = grpc.NewServer(grpc.StreamInterceptor(s.auth))
 	pb.RegisterMovingBricksServer(s.svr, new(handler.RPCHandler))
-	return s.svr.Serve(s.listener)
+	return s.svr.Serve(listener)
 }
 
 func (s TServer) Stop() {
 	s.svr.GracefulStop()
 }
 
-func NewServer(addr string) (*TServer, error) {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-	return &TServer{listener: listener, svr: grpc.NewServer(
-		//grpc.UnaryInterceptor(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
-		//	md, ok := metadata.FromIncomingContext(ctx)
-		//	if !ok {
-		//		log.Println("not ok---->")
-		//	} else {
-		//		log.Println(md.Get("authorization"))
-		//	}
-		//	ctx = context.WithValue(ctx, "uid", "admin")
-		//	// 继续处理请求
-		//	return handler(ctx, req)
-		//}),
-		grpc.StreamServerInterceptor(func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-			return handler(srv, ss)
-		}),
-		//grpc.StreamInterceptor(func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		//	md, ok := metadata.FromIncomingContext(ss.Context())
-		//	if !ok {
-		//		log.Println("not ok---->")
-		//	} else {
-		//		log.Println("-->", md.Get("authorization"))
-		//	}
-		//	//metadata.AppendToOutgoingContext(ss.Context(), "uid", "admin")
-		//	ss.SetHeader(metadata.New(map[string]string{"uid": "admin"}))
-		//	return handler(srv, ss)
-		//}),
-	)}, nil
+func NewServer(addr string) *TServer {
+	return &TServer{addr: addr}
 }

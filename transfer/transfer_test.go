@@ -3,11 +3,7 @@ package transfer
 import "testing"
 
 func TestServer(t *testing.T) {
-	svr, err := NewServer(":8080")
-	if err != nil {
-		t.Errorf("new serve err:%s", err.Error())
-		return
-	}
+	svr := NewServer(":8080")
 	if err1 := svr.Run(); err1 != nil {
 		t.Errorf("run err:%s", err1.Error())
 	}

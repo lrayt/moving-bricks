@@ -3,6 +3,7 @@ package transfer
 import (
 	"context"
 	"github.com/lrayt/moving-bricks/dto/pb"
+	"github.com/lrayt/moving-bricks/pkg/auth"
 	"github.com/lrayt/moving-bricks/pkg/string_util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -30,8 +31,7 @@ func NewClient(addr string) (*TClient, error) {
 	if err1 != nil {
 		return nil, err1
 	}
-	md := metadata.Pairs("authorization", "Bearer "+res.Token)
-	ctx1 := metadata.NewOutgoingContext(context.Background(), md)
+	ctx1 := metadata.NewOutgoingContext(context.Background(), metadata.Pairs(auth.Authorization, res.Token))
 	return &TClient{rpc: rpc, ctx: ctx1}, nil
 }
 
